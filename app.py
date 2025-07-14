@@ -10,35 +10,44 @@ import math
 st.set_page_config(page_title="PDF全能工具箱", layout="wide")
 
 # ===================================================================
-# 工具一：二维码位置调试器
+# 工具一：二维码位置调试器 
 # ===================================================================
 def tool_qr_placer():
     st.title("工具一：二维码位置调试器")
     st.info("说明：实时预览二维码在PDF上的位置与大小，获取精确的坐标值。")
 
+    # --- 侧边栏：文件上传和参数调整 ---
     st.sidebar.header("上传文件")
     uploaded_pdf = st.sidebar.file_uploader("上传PDF底图", type=["pdf"], key="placer_pdf")
     uploaded_qrs = st.sidebar.file_uploader("上传二维码图片(可多选)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="placer_qrs")
 
     if uploaded_pdf and uploaded_qrs:
-        # ... (代码与之前版本相同，为节省篇幅此处省略) ...
-        # (The code for this function is identical to the previous version and is omitted for brevity)
+        # --- 文件处理逻辑 (这部分不变) ---
         pdf_data = uploaded_pdf.read()
         doc = fitz.open(stream=pdf_data, filetype="pdf")
         pix = doc[0].get_pixmap(dpi=72)
         base_img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
         doc.close()
+
         qr_data = uploaded_qrs[0].read()
         qr_img = Image.open(io.BytesIO(qr_data)).convert("RGBA")
-        st.sidebar.header("参数调整")
-        x_pos = st.sidebar.slider("X 坐标：", min_value=0, max_value=base_img.width, value=110)
-        y_pos = st.sidebar.slider("Y 坐标：", min_value=0, max_value=base_img.height, value=140)
-        width = st.sidebar.slider("宽度 W：", min_value=1, max_value=base_img.width, value=210)
-        height = st.sidebar.slider("高度 H：", min_value=1, max_value=base_img.height, value=210)
+
+        # --- 【修改点 1】参数调整控件 ---
+        # 将 st.slider 替换为 st.number_input
+        st.sidebar.header("参数调整 (可直接输入)")
+        x_pos = st.sidebar.number_input("X 坐标：", min_value=0, max_value=base_img.width, value=110)
+        y_pos = st.sidebar.number_input("Y 坐标：", min_value=0, max_value=base_img.height, value=140)
+        width = st.sidebar.number_input("宽度 W：", min_value=1, max_value=base_img.width, value=210)
+        height = st.sidebar.number_input("高度 H：", min_value=1, max_value=base_img.height, value=210)
+        
+        # --- 图像合成逻辑 (这部分不变) ---
         resized_qr = qr_img.resize((width, height), Image.LANCZOS)
         final_image = base_img.copy()
         final_image.paste(resized_qr, (x_pos, y_pos), resized_qr)
-        st.image(final_image, caption="实时预览效果", use_column_width=True)
+
+        # --- 【修改点 2】修正 st.image 的参数 ---
+        st.image(final_image, caption="实时预览效果", use_container_width=True) # <-- use_column_width 已修正
+        
         st.success(f"当前坐标: X={x_pos}, Y={y_pos} | 当前尺寸: W={width}, H={height}")
     else:
         st.warning("⚠️ 请在左侧上传PDF底图和二维码图片以开始操作。")
@@ -83,44 +92,81 @@ def tool_batch_processor():
 
 
 # ===================================================================
-# 工具三：双二维码批量合成器
+# 工具三：双二维码批量合成器 
 # ===================================================================
 def tool_dual_qr_processor():
-    st.title("工具三：双二维码批量合成器")
+    st.title("工具三：PDF 批量生成器 (双码)")
     st.info("说明：在同一个PDF模板上同时批量插入左右两个二维码。")
 
-    # ... (代码与之前版本相同，为节省篇幅此处省略) ...
-    # (The code for this function is identical to the previous version and is omitted for brevity)
+    # --- 文件上传 (这部分不变) ---
     template_pdf = st.file_uploader("上传PDF模板", type=["pdf"], key="dual_pdf")
     left_qrs = st.file_uploader("上传所有左侧二维码", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="dual_qrs_left")
     right_qrs = st.file_uploader("上传所有右侧二维码", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="dual_qrs_right")
+
+    # --- 【修改点】参数输入 ---
     st.subheader("输入坐标和尺寸")
+    st.markdown("同样建议使用 **“工具一”** 分别调试好左右两侧二维码的位置和尺寸。")
+
     col1, col2 = st.columns(2)
-    with col1: st.markdown("##### 左侧二维码"); xL = st.number_input("左 X", 110, format="%d", key="dual_xL"); yL = st.number_input("左 Y", 140, format="%d", key="dual_yL")
-    with col2: st.markdown("##### 右侧二维码"); xR = st.number_input("右 X", 463, format="%d", key="dual_xR"); yR = st.number_input("右 Y", 140, format="%d", key="dual_yR")
-    st.markdown("##### 共享尺寸"); col_w, col_h = st.columns(2)
-    with col_w: W = st.number_input("宽度 W", 210, format="%d", key="dual_W")
-    with col_h: H = st.number_input("高度 H", 210, format="%d", key="dual_H")
+    with col1:
+        st.markdown("##### 左侧二维码")
+        # 明确使用 value= 设置初始值, min_value= 设置最小值
+        xL = st.number_input("左 X", min_value=0, value=110, format="%d", key="dual_xL")
+        yL = st.number_input("左 Y", min_value=0, value=140, format="%d", key="dual_yL")
+    with col2:
+        st.markdown("##### 右侧二维码")
+        xR = st.number_input("右 X", min_value=0, value=463, format="%d", key="dual_xR")
+        yR = st.number_input("右 Y", min_value=0, value=140, format="%d", key="dual_yR")
+
+    st.markdown("##### 共享尺寸 (左右二维码使用相同宽高)")
+    col_w, col_h = st.columns(2)
+    with col_w:
+        # 宽度和高度的最小值应为 1
+        W = st.number_input("宽度 W", min_value=1, value=210, format="%d", key="dual_W")
+    with col_h:
+        H = st.number_input("高度 H", min_value=1, value=210, format="%d", key="dual_H")
+
+    # --- 执行逻辑 (这部分不变) ---
     if st.button("开始合成双二维码PDF", type="primary", key="dual_btn"):
-        if not all([template_pdf, left_qrs, right_qrs]): st.error("❌ 错误：请务必上传所有文件！")
+        if not all([template_pdf, left_qrs, right_qrs]):
+            st.error("❌ 错误：请务必上传PDF模板以及左右两侧的二维码文件！")
         else:
             pair_count = min(len(left_qrs), len(right_qrs))
-            if len(left_qrs) != len(right_qrs): st.warning(f"ℹ️ 提示：两侧数量不同，已按最短的 {pair_count} 对处理。")
-            pairs = list(zip(left_qrs, right_qrs))
+            if len(left_qrs) != len(right_qrs):
+                st.warning(f"ℹ️ 提示：左右二维码数量不同，将按数量较少的一方（{pair_count}对）进行处理。")
+            
+            pairs = list(zip(left_qrs[:pair_count], right_qrs[:pair_count]))
+            
             zip_buffer = io.BytesIO()
-            with st.spinner(f"正在生成 {pair_count} 份PDF..."):
-                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as z:
-                    tpl_data = template_pdf.read()
-                    for l_qr, r_qr in pairs:
-                        doc = fitz.open(stream=tpl_data, filetype="pdf")
+            with st.spinner(f"正在生成 {pair_count} 份PDF，请稍候..."):
+                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_archive:
+                    template_pdf_data = template_pdf.read()
+                    
+                    for left_qr_file, right_qr_file in pairs:
+                        doc = fitz.open(stream=template_pdf_data, filetype="pdf")
                         page = doc[0]
-                        page.insert_image(fitz.Rect(xL, yL, xL + W, yL + H), stream=l_qr.read(), overlay=True)
-                        page.insert_image(fitz.Rect(xR, yR, xR + W, yR + H), stream=r_qr.read(), overlay=True)
-                        fname = f"{os.path.splitext(l_qr.name)[0]}+{os.path.splitext(r_qr.name)[0]}.pdf"
-                        z.writestr(fname, doc.tobytes())
+                        
+                        rectL = fitz.Rect(xL, yL, xL + W, yL + H)
+                        page.insert_image(rectL, stream=left_qr_file.read(), overlay=True)
+                        
+                        rectR = fitz.Rect(xR, yR, xR + W, yR + H)
+                        page.insert_image(rectR, stream=right_qr_file.read(), overlay=True)
+                        
+                        left_base = os.path.splitext(left_qr_file.name)[0]
+                        right_base = os.path.splitext(right_qr_file.name)[0]
+                        output_pdf_name = f"{left_base}+{right_base}.pdf"
+                        
+                        pdf_bytes = doc.tobytes()
                         doc.close()
-            st.success(f"✅ 处理完成！已生成 {pair_count} 份PDF。")
-            st.download_button(label="📥 点击下载ZIP压缩包", data=zip_buffer.getvalue(), file_name="dual_qr_pdfs.zip", mime="application/zip")
+                        zip_archive.writestr(output_pdf_name, pdf_bytes)
+                        
+            st.success(f"✅ 处理完成！已成功生成 {pair_count} 份PDF并打包。")
+            st.download_button(
+                label="📥 点击下载包含双二维码PDF的ZIP包",
+                data=zip_buffer.getvalue(),
+                file_name="dual_qr_pdfs.zip",
+                mime="application/zip"
+            )
 
 
 # ===================================================================
@@ -235,4 +281,4 @@ selected_tool_name = st.sidebar.radio("请从下方选择一个工具：", list(
 # 执行选择的工具函数
 tool_options[selected_tool_name]()
 
-st.sidebar.info("应用由 Streamlit 构建 | 蔡誉行开发")
+st.sidebar.info("应用由 Streamlit 构建 | 蔡誉行 开发")
