@@ -10,7 +10,7 @@ import math
 st.set_page_config(page_title="PDF全能工具箱", layout="wide")
 
 # ===================================================================
-# 工具一：二维码位置调试器 (已修复)
+# 工具一：二维码位置调试器 (高清预览版)
 # ===================================================================
 def tool_qr_placer():
     st.title("工具一：二维码位置调试器")
@@ -22,36 +22,58 @@ def tool_qr_placer():
     uploaded_qrs = st.sidebar.file_uploader("上传二维码图片(可多选)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="placer_qrs")
 
     if uploaded_pdf and uploaded_qrs:
-        # --- 文件处理逻辑 (这部分不变) ---
+        # 定义一个更高的DPI来获得更清晰的预览
+        PREVIEW_DPI = 200
+
+        # --- 文件处理逻辑 ---
         pdf_data = uploaded_pdf.read()
         doc = fitz.open(stream=pdf_data, filetype="pdf")
-        pix = doc[0].get_pixmap(dpi=72)
+        
+        # 【修改点1】先获取PDF页面的原始点尺寸，用于设置输入框的最大值
+        page = doc[0]
+        pdf_width_points = page.rect.width
+        pdf_height_points = page.rect.height
+
+        # 【修改点2】使用更高的DPI生成预览图
+        pix = page.get_pixmap(dpi=PREVIEW_DPI)
         base_img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
         doc.close()
 
         qr_data = uploaded_qrs[0].read()
         qr_img = Image.open(io.BytesIO(qr_data)).convert("RGBA")
 
-        # --- 【修改点】动态设置默认值 ---
+        # --- 参数调整控件 ---
         st.sidebar.header("参数调整 (可直接输入)")
         
-        # 使用 min() 函数确保默认值不会超过允许的最大值
-        x_val = min(110, base_img.width)
-        y_val = min(140, base_img.height)
-        w_val = min(210, base_img.width)
-        h_val = min(210, base_img.height)
+        # 输入框的最大值使用原始点尺寸，这样用户的输入逻辑不变
+        x_val = min(110, int(pdf_width_points))
+        y_val = min(140, int(pdf_height_points))
+        w_val = min(210, int(pdf_width_points))
+        h_val = min(210, int(pdf_height_points))
 
-        x_pos = st.sidebar.number_input("X 坐标：", min_value=0, max_value=base_img.width, value=x_val)
-        y_pos = st.sidebar.number_input("Y 坐标：", min_value=0, max_value=base_img.height, value=y_val)
-        width = st.sidebar.number_input("宽度 W：", min_value=1, max_value=base_img.width, value=w_val)
-        height = st.sidebar.number_input("高度 H：", min_value=1, max_value=base_img.height, value=h_val)
+        x_pos = st.sidebar.number_input("X 坐标：", min_value=0, max_value=int(pdf_width_points), value=x_val)
+        y_pos = st.sidebar.number_input("Y 坐标：", min_value=0, max_value=int(pdf_height_points), value=y_val)
+        width = st.sidebar.number_input("宽度 W：", min_value=1, max_value=int(pdf_width_points), value=w_val)
+        height = st.sidebar.number_input("高度 H：", min_value=1, max_value=int(pdf_height_points), value=h_val)
         
-        # --- 图像合成逻辑 (这部分不变) ---
-        # 添加一个检查，确保宽度和高度至少为1，避免PIL报错
+        # --- 图像合成逻辑 ---
         if width > 0 and height > 0:
-            resized_qr = qr_img.resize((width, height), Image.LANCZOS)
+            # 【修改点3】计算缩放比例，并将坐标和尺寸按比例放大
+            zoom_factor = PREVIEW_DPI / 72.0
+            
+            # 计算在高分辨率底图上，二维码应该有的像素尺寸和位置
+            scaled_width = int(width * zoom_factor)
+            scaled_height = int(height * zoom_factor)
+            scaled_x = int(x_pos * zoom_factor)
+            scaled_y = int(y_pos * zoom_factor)
+
+            # 确保缩放后的尺寸至少是1x1像素
+            if scaled_width < 1: scaled_width = 1
+            if scaled_height < 1: scaled_height = 1
+
+            resized_qr = qr_img.resize((scaled_width, scaled_height), Image.LANCZOS)
             final_image = base_img.copy()
-            final_image.paste(resized_qr, (x_pos, y_pos), resized_qr)
+            final_image.paste(resized_qr, (scaled_x, scaled_y), resized_qr)
 
             st.image(final_image, caption="实时预览效果", use_container_width=True)
             st.success(f"当前坐标: X={x_pos}, Y={y_pos} | 当前尺寸: W={width}, H={height}")
@@ -77,8 +99,8 @@ def tool_batch_processor():
     with st.expander("从哪里获取这些值？"):
         st.markdown("请先使用左侧导航栏的 **“二维码位置调试器”** 工具获取。")
     col1, col2, col3, col4 = st.columns(4)
-    with col1: x_val = st.number_input("X 坐标", value=43, format="%d", key="proc_x")
-    with col2: y_val = st.number_input("Y 坐标", value=137, format="%d", key="proc_y")
+    with col1: x_val = st.number_input("X 坐标", value=45, format="%d", key="proc_x")
+    with col2: y_val = st.number_input("Y 坐标", value=140, format="%d", key="proc_y")
     with col3: w_val = st.number_input("宽度 W", value=85, format="%d", key="proc_w")
     with col4: h_val = st.number_input("高度 H", value=85, format="%d", key="proc_h")
 
